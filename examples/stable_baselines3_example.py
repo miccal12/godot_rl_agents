@@ -101,40 +101,11 @@ parser.add_argument(
 )
 parser.add_argument("--speedup", default=1, type=int, help="Whether to speed up the physics in the env")
 parser.add_argument(
-    "--action_repeat",
-    default=None,
-    type=int,
-    help="Similar concept to frame skip, sends action/gets obs every n frames only. Uses sync node setting if not set here.",
-)
-parser.add_argument(
     "--n_parallel",
     default=1,
     type=int,
     help="How many instances of the environment executable to " "launch - requires --env_path to be set if > 1.",
 )
-parser.add_argument("--learning_rate", default=0.0003, type=float, help="The learning rate (default 0.0003)")
-parser.add_argument(
-    "--n_steps",
-    default=64,
-    type=int,
-    help="Number of steps to run for each environment per update (default 64).",
-)
-parser.add_argument(
-    "--batch_size",
-    default=64,
-    type=int,
-    help="The minibatch size (default 64). The rollout size = n_steps × n_envs must be divisible by batch_size without remainder",
-)
-parser.add_argument(
-    "--ent_coef", default=0.0001, type=float, help="The entropy coefficient for the loss calculation (default 0.0001)"
-)
-parser.add_argument(
-    "--clip_range",
-    default=0.2,
-    type=float,
-    help="The clipping range (default 0.2). This limits the policy changes per update",
-)
-
 args, extras = parser.parse_known_args()
 
 
@@ -187,12 +158,7 @@ if args.env_path is None and args.viz:
     print("Info: Using --viz without --env_path set has no effect, in-editor training will always render.")
 
 env = StableBaselinesGodotEnv(
-    env_path=args.env_path,
-    show_window=args.viz,
-    seed=args.seed,
-    n_parallel=args.n_parallel,
-    speedup=args.speedup,
-    action_repeat=args.action_repeat,
+    env_path=args.env_path, show_window=args.viz, seed=args.seed, n_parallel=args.n_parallel, speedup=args.speedup
 )
 env = VecMonitor(env)
 
@@ -221,18 +187,15 @@ def linear_schedule(initial_value: float) -> Callable[[float], float]:
 
 
 if args.resume_model_path is None:
-    learning_rate = args.learning_rate if not args.linear_lr_schedule else linear_schedule(args.learning_rate)
-
+    learning_rate = 0.0003 if not args.linear_lr_schedule else linear_schedule(0.0003)
     model: PPO = PPO(
         "MultiInputPolicy",
         env,
-        ent_coef=args.ent_coef,
+        ent_coef=0.0001,
         verbose=2,
-        n_steps=args.n_steps,
+        n_steps=32,
         tensorboard_log=args.experiment_dir,
         learning_rate=learning_rate,
-        batch_size=args.batch_size,
-        clip_range=args.clip_range,
     )
 else:
     path_zip = pathlib.Path(args.resume_model_path)
@@ -257,7 +220,9 @@ else:
     try:
         model.learn(**learn_arguments)
     except (KeyboardInterrupt, ConnectionError, ConnectionResetError):
-        print("""Training interrupted by user or a ConnectionError. Will save if --save_model_path was
-            used and/or export if --onnx_export_path was used.""")
+        print(
+            """Training interrupted by user or a ConnectionError. Will save if --save_model_path was
+            used and/or export if --onnx_export_path was used."""
+        )
     finally:
         cleanup()
